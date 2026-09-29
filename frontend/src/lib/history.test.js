@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextTrainingDay, modeOf, isTimed, fmtSec, setLabel, defaultConfig, buildSets, freestyleConfig, exLine, workoutVolume, bestWeightFor, bestWeightForEntry, completedRepsOf, metricRowsForEntry, effortOf, stepEffort, capEffort, isBw, isPerSide, sideReps, repStep, cascadeWeight, insertWarmupRow, removeRowAt, workSetsDone, setsDone, setsDoneActive, setUnits, doneUnits, setUnitsTotal, pairAdjacent, unpairSuperset, supersetUnits, sessionSections, applyIntensifierPlan, pinnedNoteFor, exNoteFor, effectiveRoutineIds, effectiveRoutines, effectiveRoutineId, effectiveRoutine, lastEntryFor, entryExcluded, entryRoutineId, setsRepsOf } from './history.js'
+import { nextTrainingDay, modeOf, isTimed, fmtSec, setLabel, defaultConfig, buildSets, freestyleConfig, exLine, workoutVolume, bestWeightFor, bestWeightForEntry, completedRepsOf, metricRowsForEntry, effortOf, stepEffort, capEffort, isBw, isPerSide, sideReps, repStep, cascadeWeight, insertWarmupRow, removeRowAt, workSetsDone, setsDone, setsDoneActive, setUnits, doneUnits, setUnitsTotal, pairAdjacent, unpairSuperset, supersetUnits, sessionSections, applyIntensifierPlan, pinnedNoteFor, exNoteFor, effectiveRoutineIds, effectiveRoutines, effectiveRoutineId, effectiveRoutine, lastEntryFor, lastPerformedFor, entryExcluded, entryRoutineId, setsRepsOf } from './history.js'
 import { makeSideSet, setSideField, toggleSide, WEIGHT_ORIGIN_MANUAL } from './workout-model.js'
 import { EXDB } from './exercises.js'
 
@@ -1332,6 +1332,17 @@ describe('lastEntryFor / buildSets skip a noProg entry', () => {
   it('bestWeightFor is unchanged — a heavy noProg set still counts toward Best', () => {
     const S = { workouts: [wk('2026-01-01', 60, 8), wk('2026-01-05', 140, 3, { noProg: true })] }
     expect(bestWeightFor(S, LIFT2)).toBe(140)
+  })
+  it('lastPerformedFor includes the noProg session for display — an excluded routine still moves', () => {
+    // Real bug 2026-09-29: Full Body A marked excludeFromProgression, so Sept 23 (25×10,
+    // noProg) was skipped and the card stayed on Sept 9 (22.5×12) instead of Sept 23.
+    const S = { workouts: [
+      { d: '2026-09-09', routineId: 'A', entries: [{ id: LIFT2, target: { sets: 3, reps: 10, weight: 20 }, sets: [{ w: 22.5, r: 12, done: true }] }] },
+      { d: '2026-09-23', routineIds: ['A'], routineId: 'A', entries: [{ id: LIFT2, rid: 'A', noProg: true, target: { sets: 3, reps: 10, weight: 20 }, sets: [{ w: 25, r: 10, done: true }] }] },
+    ] }
+    expect(lastEntryFor(S, LIFT2, 'A').d).toBe('2026-09-09')
+    expect(lastPerformedFor(S, LIFT2, 'A')).toMatchObject({ d: '2026-09-23', rid: 'A' })
+    expect(lastPerformedFor(S, LIFT2, 'A').sets).toMatchObject([{ w: 25, r: 10 }])
   })
 })
 

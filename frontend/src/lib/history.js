@@ -296,16 +296,37 @@ const entryIn = (w, exId, rid) => (w.entries || []).find(e => e && e.id === exId
  * a heavy day and a light day is two lines of progress, not one that zigzags between them. A
  * routine that has never trained the exercise falls back to its last session anywhere, so a new
  * or copied routine starts from what you actually lift rather than from nothing.
+ *
+ * Sessions kept out of progression (a deload, a rehab block, "Don't count for progression")
+ * are skipped: they must not seed the next prescription any more than their weight seeds it.
+ * Use lastPerformedFor for display ("what did I actually do last time"), which includes them.
  */
 export function lastEntryFor(S, exId, rid) {
   if (rid) {
-    const own = lastEntryIn(S, exId, rid)
+    const own = lastEntryIn(S, exId, rid, true)
     if (own) return own
   }
-  return lastEntryIn(S, exId, null)
+  return lastEntryIn(S, exId, null, true)
 }
 
-function lastEntryIn(S, exId, rid) {
+/**
+ * The last performed session of an exercise, including ones kept out of progression.
+ *
+ * Same slot rule as lastEntryFor (#216), but no entryExcluded filter: the card's "Last time"
+ * answers "what did I actually lift last time in this routine", while the progression engine
+ * answers "what was the last session that counted". For a routine that is itself excluded
+ * (all its sessions carry noProg) the counting version never moves past the last regular
+ * session — e.g. stuck at Sept 9 while Sept 23 and Sept 29 exist — which reads as a bug.
+ */
+export function lastPerformedFor(S, exId, rid) {
+  if (rid) {
+    const own = lastEntryIn(S, exId, rid, false)
+    if (own) return own
+  }
+  return lastEntryIn(S, exId, null, false)
+}
+
+function lastEntryIn(S, exId, rid, skipExcluded = true) {
   const workouts = S.workouts || []
   for (let i = workouts.length - 1; i >= 0; i--) {
     const w = workouts[i]
@@ -314,10 +335,11 @@ function lastEntryIn(S, exId, rid) {
     // A session that does not count — a planned deload, or a rehab block merged into a real
     // session — is not "last time" for the next regular prescription: its reps and durations
     // must not seed the rows any more than its weight seeds the progression.
-    if (entryExcluded(w, en)) continue
-    // Work sets only. Every caller asks the same question — "what did you actually lift last
-    // time" — to seed the next session's rows, to size a freestyle config, and to print "Last
-    // time" on the card. A warm-up answers none of them: seeding position 0 from a 50% ramp row
+    if (skipExcluded && entryExcluded(w, en)) continue
+    // Work sets only. Counting callers ask "what did you actually lift last time that counts"
+    // to seed the next session's rows and to size a freestyle config; display callers
+    // (lastPerformedFor) ask "what did you actually lift last time, period". A warm-up
+    // answers neither of them: seeding position 0 from a 50% ramp row
     // walks the working weight DOWN a little every session, and counting the ramp rows makes a
     // 3x5 come back as a 5-set exercise. Warm-ups are already excluded from volume, records and
     // progression; this is the same rule one level up.
